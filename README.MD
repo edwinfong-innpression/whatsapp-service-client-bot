@@ -12,7 +12,7 @@ An English and Traditional Chinese guide to the WhatsApp service bot. The bot co
 ### What it does
 
 - Connects to WhatsApp using Baileys. On first launch, scan the displayed QR code with WhatsApp.
-- Checks a sender's identity through the configured service backend before processing messages.
+- Checks a sender's identity through a backend service before processing messages.
 - Uses keyword rules and Ollama to interpret messages and collect missing details.
 - Currently registers handlers for **class lookup** and **attendance**. Other intents can be recognized, but are not connected to action handlers yet.
 - Provides a health endpoint at `/health`.
