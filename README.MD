@@ -86,7 +86,7 @@ Implement the action in a handler under `src/handlers/`, then register its inten
 - If the bot cannot generate a response, verify that Ollama is running, the URL is reachable from the bot, and the configured model is installed.
 - If WhatsApp does not connect, scan the displayed QR code or check that the saved authentication state is valid.
 - If class lookup fails, check the identity response's `collections` value and backend availability.
-- The package's `test` script is currently a placeholder; no automated test suite is configured.
+- No automated test suite is currently configured.
 
 ## 繁體中文
 
@@ -167,4 +167,4 @@ Implement the action in a handler under `src/handlers/`, then register its inten
 - 如果無法生成回覆，請確認 Ollama 正在運作、機械人可連接設定的網址，而且指定模型已安裝。
 - 如果 WhatsApp 無法連線，請掃描顯示的 QR code，或確認已儲存的登入狀態有效。
 - 如果查堂失敗，請檢查身份服務回傳的 `collections` 值及後端服務狀態。
-- 套件中的 `test` 指令目前只是佔位內容，專案尚未設定自動化測試。
+- 專案目前尚未設定自動化測試。
