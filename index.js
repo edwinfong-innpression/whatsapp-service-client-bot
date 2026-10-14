@@ -55,6 +55,7 @@ const ALLOWED_PHONES = new Set(
 
 const API_URL = {
   "dev": "https://tutordev-api.innpressionhost.com/request.php",
+  "uat": "https://tutoring.innpressionhost.com/request.php",
   "t61": "https://joyful-api.innpressionhost.com/request.php"
 }
 
@@ -62,6 +63,7 @@ const sessions = new Map() // key: senderId
 
 // ---- User Session Functions ----
 
+// ---- 用戶對話 Storage ----
 function getSession(senderId) {
   if (!sessions.has(senderId)) {
     sessions.set(senderId, {
@@ -73,6 +75,7 @@ function getSession(senderId) {
   return sessions.get(senderId)
 }
 
+// ---- 移除用戶已完成對話 ----
 function clearSession(senderId) {
   sessions.delete(senderId)
 }
@@ -164,6 +167,7 @@ async function start() {
   })
 }
 
+// ---- 身份權限檢測 ----
 async function resolveIdentity(phoneNum) {
   const body = new URLSearchParams()
   body.append('check_agent_user', JSON.stringify({"phone":phoneNum}))
@@ -194,6 +198,7 @@ async function resolveIdentity(phoneNum) {
   }
 }
 
+// ---- 訊息build ----
 async function Message(role ,text, user, senderId) {
   const s = getSession(senderId)
   console.log("getSession",s)
@@ -213,18 +218,31 @@ async function Message(role ,text, user, senderId) {
   }
 
   // const intent = detectIntent(text)
+  // 檢測功能
   const intent = await detectIntentHybrid(text, role)
   if (intent.name === 'unsupported') {
     return '暫時只支援：查堂、開堂、報堂、調堂、點名（簽到/缺席/病假）、退堂。'
   }
 
+  // if (intent.name === INTENT.GENERAL_CHAT) {
+  //   const prompt = `你係客服助理，用自然廣東話又十分禮貌的語氣簡潔回覆，而且請勿離題回覆平台功能以外資訊。\n用戶訊息：${text}`
+  //   const reply = await callOllama(prompt)
+  //   return String(reply ?? '收到。').slice(0, 3000)
+  // }
+  // 如果是沒有對應功能
   if (intent.name === INTENT.GENERAL_CHAT) {
-    const prompt = `你係客服助理，用自然廣東話又十分禮貌的語氣簡潔回覆，而且請勿離題回覆平台功能以外資訊。\n用戶訊息：${text}`
-    const reply = await callOllama(prompt)
+    const guard = await aiGeneralChatGuard(text, role)
+
+    if (!guard.allow && guard.confidence >= 0.6) {
+      return '我主要協助課堂相關：查堂、開堂、報堂、調堂、點名、退堂。你想處理邊一項？'
+    }
+
+    const reply = await callOllama(`你係客服助理，用自然廣東話簡潔回覆，請用十分禮貌的語氣。\n用戶訊息：${text}`)
     return String(reply ?? '收到。').slice(0, 3000)
   }
 
   // init slot
+  // 檢查是否有在進行中對話
   const ai = await aiDetectIntent(text, role)
   console.log('[ai]', ai)
   const slotsFromRule = extractSlots(text, intent)
@@ -235,6 +253,7 @@ async function Message(role ,text, user, senderId) {
     slots.action = ai.attendance_action
   }
 
+  // 是否要補充data
   const miss = missingSlots(intent.name, slots)
 
   if (miss.length) {
@@ -243,18 +262,21 @@ async function Message(role ,text, user, senderId) {
     return askForMissing(intent.name, miss)
   }
 
+  // 要求用戶提供什麼data
   const detail = needsMoreDetail(text, intent)
   if (detail.need) {
     console.log('[detail.need]', detail.need)
     return detail.ask
   }
 
+  // 身份detect
   const permit = await authorizeTool(role, intent)
   if (!permit.ok) {
     console.log('[permit.ok]', permit.ok)
     return permit.reason
   }
-  
+
+  // 系統功能執行
   const toolReply = await executeIntent(intent, slots, user)
   if (toolReply) {
     console.log('[toolReply]]', toolReply)
@@ -273,6 +295,7 @@ async function Message(role ,text, user, senderId) {
   return reply.slice(0, 3000)
 }
 
+// ---- 提取訊息內data ----
 function fillSlotsFromText(session, text = '') {
   if (!session.slots) session.slots = {}
 
@@ -310,6 +333,7 @@ function fillSlotsFromText(session, text = '') {
   return session.slots
 }
 
+// ---- detail data 拆解 ----
 function extractSlots(text = '', intent) {
   const t = text.trim()
   let action = null
@@ -329,6 +353,7 @@ function extractSlots(text = '', intent) {
   return { classId, student, date, action }
 }
 
+// ---- detail data 欠缺測試 ----
 function missingSlots(intentName, slots) {
   const req = {
     check_class: ['date'],                 // 或 ['classId']，按你業務改
@@ -344,6 +369,7 @@ function missingSlots(intentName, slots) {
   return req.filter((k) => !slots[k])
 }
 
+// ---- detail data 整合 ----
 function mergePreferNonNull(base = {}, patch = {}) {
   const out = { ...base }
   for (const [k, v] of Object.entries(patch)) {
@@ -352,6 +378,7 @@ function mergePreferNonNull(base = {}, patch = {}) {
   return out
 }
 
+// ---- detail data 整合 ----
 function askForMissing(intentName, miss = []) {
   const labels = {
     classId: '班堂ID',
@@ -362,7 +389,7 @@ function askForMissing(intentName, miss = []) {
   }
 
   // 逐個 intent 自訂優先追問（自然啲）
-  if (intentName === 'attendance') {
+  if (intentName === INTENT.ATTENDANCE) {
     if (miss.includes('action')) return '請先講點名動作：簽到、缺席，定病假？'
     if (miss.includes('classId')) return '請提供班堂ID，例如：A101'
     if (miss.includes('student')) return '請提供學生名，例如：Chan Tai Man'
@@ -407,27 +434,7 @@ function askForMissing(intentName, miss = []) {
   return `請補充以下資料：${missingText}`
 }
 
-function parseAttendanceAction(text = '') {
-  const t = text.trim()
-  if (/(簽到|出席|present|check-?in)/i.test(t)) return ATTENDANCE_ACTION.PRESENT
-  if (/(缺席|absent)/i.test(t)) return ATTENDANCE_ACTION.ABSENT
-  if (/(病假|請病假|sick|sick\s*leave)/i.test(t)) return ATTENDANCE_ACTION.SICK
-  return null
-}
-
-function forceIntentByKeyword(text='') {
-  const t = text
-  if (/(點名|簽到|缺席|病假)/i.test(t)) return INTENT.ATTENDANCE
-  if (/(查堂|查課)/i.test(t)) return INTENT.CHECK_CLASS
-  if (/(開堂|開課)/i.test(t)) return INTENT.OPEN_CLASS
-  if (/(報堂|報名)/i.test(t)) return INTENT.APPLY_CLASS
-  if (/(調堂|改期)/i.test(t)) return INTENT.RESCHEDULE
-  if (/(調課程|轉班)/i.test(t)) return INTENT.SWITCH
-  if (/(跳堂)/i.test(t)) return INTENT.SKIP
-  if (/(退堂|退課)/i.test(t)) return INTENT.EXIT_CLASS
-  return null
-}
-
+// ---- AI+keyword 混合功能檢測 ----
 async function detectIntentHybrid(text, role) {
   const forced = forceIntentByKeyword(text)
   if (forced) return { name: forced, confidence: 0.99, source: 'force' }
@@ -448,6 +455,21 @@ async function detectIntentHybrid(text, role) {
   return { name: INTENT.GENERAL_CHAT, confidence: 0.6, source: 'fallback' }
 }
 
+// ---- 強制Keyword檢測 ----
+function forceIntentByKeyword(text='') {
+  const t = text
+  if (/(點名|簽到|缺席|病假)/i.test(t)) return INTENT.ATTENDANCE
+  if (/(查堂|查課)/i.test(t)) return INTENT.CHECK_CLASS
+  if (/(開堂|開課)/i.test(t)) return INTENT.OPEN_CLASS
+  if (/(報堂|報名)/i.test(t)) return INTENT.APPLY_CLASS
+  if (/(調堂|改期)/i.test(t)) return INTENT.RESCHEDULE
+  if (/(調課程|轉班)/i.test(t)) return INTENT.SWITCH
+  if (/(跳堂)/i.test(t)) return INTENT.SKIP
+  if (/(退堂|退課)/i.test(t)) return INTENT.EXIT_CLASS
+  return null
+}
+
+// ---- Keyword檢測 ----
 function detectIntent(text = '') {
   const t = text.trim()
 
@@ -469,6 +491,16 @@ function detectIntent(text = '') {
   return { name: INTENT.UNSUPPORTED, confidence: 0.2 }
 }
 
+// ---- 出席keyword檢測 ----
+function parseAttendanceAction(text = '') {
+  const t = text.trim()
+  if (/(簽到|出席|present|check-?in)/i.test(t)) return ATTENDANCE_ACTION.PRESENT
+  if (/(缺席|absent)/i.test(t)) return ATTENDANCE_ACTION.ABSENT
+  if (/(病假|請病假|sick|sick\s*leave)/i.test(t)) return ATTENDANCE_ACTION.SICK
+  return null
+}
+
+// ---- 久缺data檢測 ----
 function needsMoreDetail(text, intent) {
   const t = text.trim()
   const classId = t.match(/(?:class|堂|課)\s*[:#]?\s*([A-Za-z0-9_-]+)/i)?.[1]
@@ -485,7 +517,6 @@ function needsMoreDetail(text, intent) {
   return { need: false }
 }
 
-
 // ---- 權限detection ----
 async function authorizeTool(identity, intent) {
   // 權限控制：例如 store_user 只可查自己店舖資料
@@ -495,12 +526,13 @@ async function authorizeTool(identity, intent) {
   return { ok: true }
 }
 
-// ---- 執行動作 ----
+// ---- 執行後台互動動作 ----
 async function executeIntent(intent, slots, user) {
   console.log("intent.name", intent.name)
   if (intent.name === INTENT.CHECK_CLASS) {
     console.log("slots", slots)
     console.log("user", user)
+
     const body = new URLSearchParams()
     body.append('get_all_data_by_datatype', JSON.stringify({"data_type":"lesson_data","filter_item":[{"key":"date","value":slots.date}]}))
 
@@ -548,26 +580,10 @@ async function executeIntent(intent, slots, user) {
   return null
 }
 
-function normalizeOrderId(raw = '') {
-  const s = String(raw).trim().toUpperCase()
-  // DN-120 / DN120 / 120 都支援
-  const m = s.match(/^(?:DN[-\s]?)?(\d+)$/i)
-  return m ? m[1] : null // 給 DB/API 用（純數字）
-}
 
-function extractOrderToken(text = '') {
-  // 從句子抽第一個似訂單編號嘅 token
-  const m = text.toUpperCase().match(/\b(?:DN[-\s]?\d+|\d+)\b/)
-  return m ? m[0] : null
-}
+// ---- AI Functions ----
 
-function formatLocalDate(d = new Date()) {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
+// ---- 功能檢測 ----
 async function aiDetectIntent(text, role) {
   const today = formatLocalDate(new Date()) // e.g. 2026-09-04
   const prompt = `
@@ -623,6 +639,40 @@ async function aiDetectIntent(text, role) {
   }
 }
 
+// ---- 離題檢測 -----
+async function aiGeneralChatGuard(text, role) {
+  const prompt = `
+    你是客服訊息守門員，只輸出 JSON，請用十分禮貌的語氣。
+    你要判斷這句 general chat 是否應該回覆，或應引導回「課堂業務範圍」。
+
+    業務範圍：查堂、開堂、報堂、調堂、點名、退堂。
+    規則：
+    1) 若內容明顯與上述業務無關（如股票、政治、投資、娛樂八卦、圖象生成、影片生成、程式生成等）=> "allow": false
+    2) 若是寒暄、禮貌語、簡單閒聊（可提升體驗）=> "allow": true
+    3) 不確定時，偏向 false（保守）
+
+    輸出格式：
+    {"allow": true|false, "reason":"...", "confidence":0-1}
+
+    role: ${role}
+    text: ${text}
+    `.trim()
+
+  const raw = await callOllama(prompt)
+  const m = String(raw).match(/\{[\s\S]*\}/)
+  if (!m) return { allow: false, confidence: 0 }
+  try {
+    const j = JSON.parse(m[0])
+    return {
+      allow: !!j.allow,
+      reason: j.reason || '',
+      confidence: Number(j.confidence || 0)
+    }
+  } catch {
+    return { allow: false, confidence: 0 }
+  }
+}
+
 // ---- AI 生成回覆 ----
 async function callOllama(prompt) {
   const { data } = await axios.post(
@@ -638,15 +688,20 @@ async function callOllama(prompt) {
   return data?.response?.trim()
 }
 
-async function getOrderStatus(orderId, user) {
-  const parsed = OrderInput.parse({ orderId })
-  const { data } = await axios.get(`${API_BASE}/orders/${encodeURIComponent(parsed.orderId)}`, {
-    headers: { Authorization: `Bearer ${API_KEY}` },
-    timeout: 15000
-  })
-  return data
+
+
+
+// ---- 通用功能 ----
+
+// ---- 本地時間 ----
+function formatLocalDate(d = new Date()) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
+// ---- 文字修正 ----
 function toSafeText(v) {
   if (typeof v === 'string') return v
   if (v == null) return ''
