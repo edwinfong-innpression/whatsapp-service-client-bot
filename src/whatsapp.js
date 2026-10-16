@@ -107,8 +107,10 @@ export async function sendMenu(sock, jid, jidAlt, text, items) {
   })
 }
 
-export async function start() {
-  const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info')
+export async function start({ storeId, authDir, onQr, onOpen, reconnect = true } = {}) {
+  const dir = authDir || (storeId ? `baileys_auth/${storeId}` : 'baileys_auth_info')
+  const opts = { storeId, authDir, onQr, onOpen, reconnect }
+  const { state, saveCreds } = await useMultiFileAuthState(dir)
   const sock = makeWASocket({
     auth: state,
     logger: P({ level: 'silent' })
@@ -118,17 +120,19 @@ export async function start() {
 
   sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
     // if (qr) log.info('請掃 QR code 登入 WhatsApp')
-    if (qr) {
+    if (qr && onQr) onQr(qr)
+    else if (qr) {
       console.log('Scan this QR with WhatsApp:')
       qrcode.generate(qr, { small: true })
     }
     if (connection === 'close') {
       const shouldReconnect =
         lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut
-      log.warn({ shouldReconnect }, 'connection closed')
-      if (shouldReconnect) start()
+      log.warn({ storeId, shouldReconnect }, 'connection closed')
+      if (shouldReconnect && reconnect) start(opts)
     } else if (connection === 'open') {
-      log.info('WhatsApp connected')
+      log.info({ storeId }, 'WhatsApp connected')
+      if (onOpen) onOpen(sock)
     }
   })
 
