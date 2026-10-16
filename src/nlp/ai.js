@@ -23,8 +23,8 @@ export async function aiDetectIntent(text, role) {
     present, absent, sick, null
 
     分類規則（重要）：
-    1) 只要訊息是在「問有咩課堂/搵課堂/查課堂/課程時間/課堂詳情」，一律 intent=check_class
-    2) 只要涉及點名，intent=attendance，並判斷 attendance_action
+    1) 只要訊息是在「問有咩課堂/搵課堂/查課堂/課程時間/課堂詳情」或相近意思，一律 intent=check_class
+    2) 只要涉及點名或相近意思，intent=attendance，並判斷 attendance_action
     3) 其餘先用 general_chat
     4) 不肯定時，優先用最接近的業務功能，不要過度用 general_chat
 

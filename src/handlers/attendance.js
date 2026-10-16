@@ -1,3 +1,5 @@
+import { API_URL } from '../config.js'
+
 // 點名
 export async function attendance(intent, slots, user) {
   const { classId, student } = slots

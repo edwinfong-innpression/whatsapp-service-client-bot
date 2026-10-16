@@ -19,18 +19,95 @@ export async function Message(role ,text, user, senderId) {
     fillSlotsFromText(s, text) // 你自定：抽 classId/student/action/date...
 
     const miss = missingSlots(s.pendingIntent, s.slots)
-    if (miss.length) return askForMissing(s.pendingIntent, miss)
+    if (miss.length) return askForMissing(s.pendingIntent, miss), null
 
     const reply = await executeIntent({"name":s.pendingIntent}, s.slots, user)
     clearSession(senderId)
-    return reply
+    return { feed: reply, options: null }
   }
 
   // const intent = detectIntent(text)
   // 檢測功能
   const intent = await detectIntentHybrid(text, role)
   if (intent.name === 'unsupported') {
-    return '暫時只支援：查堂、開堂、報堂、調堂、點名（簽到/缺席/病假）、退堂。'
+    // const buttons = [
+    //   {
+    //     name: 'quick_reply',
+    //     buttonParamsJson: JSON.stringify({
+    //       display_text: '查堂',
+    //       id: 'check_class'
+    //     })
+    //   },
+    //   {
+    //     name: 'quick_reply',
+    //     buttonParamsJson: JSON.stringify({
+    //       display_text: '報堂',
+    //       id: 'apply_class'
+    //     })
+    //   },
+    //   {
+    //     name: 'quick_reply',
+    //     buttonParamsJson: JSON.stringify({
+    //       display_text: '調堂',
+    //       id: 'reschedule'
+    //     })
+    //   },
+    //   {
+    //     name: 'quick_reply',
+    //     buttonParamsJson: JSON.stringify({
+    //       display_text: '點名',
+    //       id: 'attendance'
+    //     })
+    //   },
+    //   {
+    //     name: 'quick_reply',
+    //     buttonParamsJson: JSON.stringify({
+    //       display_text: '退堂',
+    //       id: 'exit_class'
+    //     })
+    //   }
+    // ];
+    const buttons = [
+      {
+        name: 'single_select',
+        buttonParamsJson: JSON.stringify({
+          title: '請選擇',
+          sections: [
+            {
+              title: '選項',
+              "rows": [
+                {
+                  "id":"check_class",
+                  "title": "查堂",
+                  "description": "",           
+                },
+                {
+                  "id":"apply_class",
+                  "title": "報堂",
+                  "description": "",           
+                },
+                {
+                  "id":"reschedule",
+                  "title": "調堂",
+                  "description": "",           
+                },
+                {
+                  "id":"attendance",
+                  "title": "點名",
+                  "description": "",           
+                },
+                {
+                  "id":"exit_class",
+                  "title": "退堂",
+                  "description": "",           
+                }
+              ]
+            }
+          ]
+        })
+      }
+    ]
+    return { feed: '暫時只支援：查堂、報堂、調堂、點名（簽到/缺席/病假）、退堂。', options: buttons }
   }
 
   // if (intent.name === INTENT.GENERAL_CHAT) {
@@ -43,11 +120,128 @@ export async function Message(role ,text, user, senderId) {
     const guard = await aiGeneralChatGuard(text, role)
 
     if (!guard.allow && guard.confidence >= 0.6) {
-      return '我主要協助課堂相關：查堂、開堂、報堂、調堂、點名、退堂。你想處理邊一項？'
+      // const buttons = [
+      //   {
+      //     name: 'quick_reply',
+      //     buttonParamsJson: JSON.stringify({
+      //       display_text: '查堂',
+      //       id: 'check_class'
+      //     })
+      //   },
+      //   {
+      //     name: 'quick_reply',
+      //     buttonParamsJson: JSON.stringify({
+      //       display_text: '報堂',
+      //       id: 'apply_class'
+      //     })
+      //   },
+      //   {
+      //     name: 'quick_reply',
+      //     buttonParamsJson: JSON.stringify({
+      //       display_text: '調堂',
+      //       id: 'reschedule'
+      //     })
+      //   },
+      //   {
+      //     name: 'quick_reply',
+      //     buttonParamsJson: JSON.stringify({
+      //       display_text: '點名',
+      //       id: 'attendance'
+      //     })
+      //   },
+      //   {
+      //     name: 'quick_reply',
+      //     buttonParamsJson: JSON.stringify({
+      //       display_text: '退堂',
+      //       id: 'exit_class'
+      //     })
+      //   }
+      // ];
+      const buttons = [
+        {
+          name: 'single_select',
+          buttonParamsJson: JSON.stringify({
+            title: '請選擇',
+            sections: [
+              {
+                title: '選項',
+                "rows": [
+                  {
+                    "id":"check_class",
+                    "title": "查堂",
+                    "description": "",           
+                  },
+                  {
+                    "id":"apply_class",
+                    "title": "報堂",
+                    "description": "",           
+                  },
+                  {
+                    "id":"reschedule",
+                    "title": "調堂",
+                    "description": "",           
+                  },
+                  {
+                    "id":"attendance",
+                    "title": "點名",
+                    "description": "",           
+                  },
+                  {
+                    "id":"exit_class",
+                    "title": "退堂",
+                    "description": "",           
+                  }
+                ]
+              }
+            ]
+          })
+        }
+      ]
+      return { feed: '我主要協助課堂相關：查堂、報堂、調堂、點名、退堂。你想處理邊一項？', options: buttons }
     }
 
     const reply = await callOllama(`你係客服助理，用自然廣東話簡潔回覆，請用十分禮貌的語氣。\n用戶訊息：${text}`)
-    return String(reply ?? '收到。').slice(0, 3000)
+    const buttons = [
+      {
+        name: 'single_select',
+        buttonParamsJson: JSON.stringify({
+          title: '請選擇',
+          sections: [
+            {
+              title: '選項',
+              "rows": [
+                {
+                  "id":"check_class",
+                  "title": "查堂",
+                  "description": "",           
+                },
+                {
+                  "id":"apply_class",
+                  "title": "報堂",
+                  "description": "",           
+                },
+                {
+                  "id":"reschedule",
+                  "title": "調堂",
+                  "description": "",           
+                },
+                {
+                  "id":"attendance",
+                  "title": "點名",
+                  "description": "",           
+                },
+                {
+                  "id":"exit_class",
+                  "title": "退堂",
+                  "description": "",           
+                }
+              ]
+            }
+          ]
+        })
+      }
+    ]
+    return { feed: String(reply ?? '收到。').slice(0, 3000), options: buttons }
   }
 
   // init slot
@@ -68,28 +262,28 @@ export async function Message(role ,text, user, senderId) {
   if (miss.length) {
     s.pendingIntent = intent.name
     s.slots = slots
-    return askForMissing(intent.name, miss)
+    return { feed: askForMissing(intent.name, miss), options: null }
   }
 
   // 要求用戶提供什麼data
   const detail = needsMoreDetail(text, intent)
   if (detail.need) {
     console.log('[detail.need]', detail.need)
-    return detail.ask
+    return { feed: detail.ask, options: null }
   }
 
   // 身份detect
   const permit = await authorizeTool(role, intent)
   if (!permit.ok) {
     console.log('[permit.ok]', permit.ok)
-    return permit.reason
+    return { feed: permit.reason, options: null }
   }
 
   // 系統功能執行
   const toolReply = await executeIntent(intent, slots, user)
   if (toolReply) {
     console.log('[toolReply]]', toolReply)
-    return toolReply
+    return { feed: toolReply, options: null }
   }
 
   // 否則走 LLM（帶角色與邊界）
@@ -101,5 +295,5 @@ export async function Message(role ,text, user, senderId) {
   ].filter(Boolean).join('\n')
 
   const reply = await callOllama(prompt)
-  return reply.slice(0, 3000)
+  return { feed: reply.slice(0, 3000), options: null }
 }

@@ -27,7 +27,7 @@ export function forceIntentByKeyword(text='') {
   const t = text
   if (/(點名|簽到|缺席|病假)/i.test(t)) return INTENT.ATTENDANCE
   if (/(查堂|查課)/i.test(t)) return INTENT.CHECK_CLASS
-  if (/(開堂|開課)/i.test(t)) return INTENT.OPEN_CLASS
+  // if (/(開堂|開課)/i.test(t)) return INTENT.OPEN_CLASS
   if (/(報堂|報名)/i.test(t)) return INTENT.APPLY_CLASS
   if (/(調堂|改期)/i.test(t)) return INTENT.RESCHEDULE
   if (/(調課程|轉班)/i.test(t)) return INTENT.SWITCH

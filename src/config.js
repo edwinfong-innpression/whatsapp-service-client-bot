@@ -9,7 +9,7 @@ export const ROLE = {
 }
 export const INTENT = {
   CHECK_CLASS: 'check_class',   // 查堂
-  OPEN_CLASS: 'open_class',     // 開堂
+  // OPEN_CLASS: 'open_class',     // 開堂
   APPLY_CLASS: 'apply_class', // 報堂
   RESCHEDULE: 'reschedule',     // 調堂
   SWITCH: 'switch',     // 調堂
