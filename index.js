@@ -15,11 +15,11 @@ const app = express()
 app.use(express.json())
 app.get('/health', (_, res) => res.json({ ok: true }))
 
-function startPm2(storeId) {
+function startPm2(storeId, phone) {
   const name = `wa-store-${storeId}`
   return new Promise((resolve, reject) => {
     execFile('pm2', ['start', WORKER, '--name', name, '--update-env'],
-      { env: { ...process.env, STORE_ID: storeId } },
+      { env: { ...process.env, STORE_ID: storeId, STORE_PHONE: phone } },
       (err, stdout, stderr) => err ? reject(new Error(stderr || err.message)) : resolve(name))
   })
 }
@@ -42,11 +42,11 @@ app.post('/stores/:id/link', async (req, res) => {
         try {
           link.status = 'linked'
           const phone = (sock.user?.id || '').split(':')[0].split('@')[0]
-          saveStore(id, { id, phone, authDir: `baileys_auth/${id}`, ...(req.body?.config || {}), status: 'linked' })
+          saveStore(id, { ...(req.body?.config || {}), id, phone, authDir: `baileys_auth/${id}`, status: 'linked' })
           // free the linking socket; worker takes over the same auth state
           sock.ev.removeAllListeners()
           sock.end(undefined)
-          const pm2Name = await startPm2(id)
+          const pm2Name = await startPm2(id, phone)
           saveStore(id, { status: 'running', pm2Name })
           link.status = 'running'
         } catch (e) {
